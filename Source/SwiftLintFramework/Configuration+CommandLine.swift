@@ -274,7 +274,7 @@ extension Configuration {
         }
         let excludeLintableFilesBy = options.useExcludingByPrefix
                     ? Configuration.ExcludeBy.prefix
-                    : .paths(excludedPaths: excludedPaths())
+                    : .paths(excludedPaths: excludedPaths)
         return options.paths.flatMap {
             self.lintableFiles(
                 inPath: $0,

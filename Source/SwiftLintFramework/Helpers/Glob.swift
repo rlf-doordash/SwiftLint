@@ -8,6 +8,124 @@ import func Musl.glob
 #endif
 #endif
 
+// MARK: - Optimized Pattern Matching
+
+/// Categorizes glob patterns for optimized matching
+enum OptimizedGlobPattern: Equatable {
+    /// Pattern like `**foo` - matches paths ending with "foo"
+    case prefix(String)
+    /// Pattern like `foo**` - matches paths starting with "foo"
+    case suffix(String)
+    /// Complex pattern resolved to concrete paths
+    case complex([String])
+    
+    /// Creates an optimized pattern from a glob string
+    static func categorize(_ pattern: String) -> OptimizedGlobPattern {
+        let globCharset = CharacterSet(charactersIn: "*?[]")
+        
+        // Simple patterns without glob characters are treated as literal
+        guard pattern.rangeOfCharacter(from: globCharset) != nil else {
+            return .complex(Glob.resolveGlob(pattern))
+        }
+        
+        // Check for simple prefix pattern: **suffix (where suffix contains no glob characters)
+        if pattern.hasPrefix("**") {
+            let suffix = String(pattern.dropFirst(2))
+            // Ensure the suffix contains no glob characters (only the ** at start should be present)
+            if suffix.rangeOfCharacter(from: globCharset) == nil {
+                // Handle **/ prefix
+                let cleanSuffix = suffix.hasPrefix("/") ? String(suffix.dropFirst()) : suffix
+                return .prefix(cleanSuffix)
+            }
+        }
+        
+        // Check for simple suffix pattern: prefix** (where prefix contains no glob characters)
+        if pattern.hasSuffix("**") {
+            let prefix = String(pattern.dropLast(2))
+            // Ensure the prefix contains no glob characters (only the ** at end should be present)
+            if prefix.rangeOfCharacter(from: globCharset) == nil {
+                // Handle /** suffix  
+                let cleanPrefix = prefix.hasSuffix("/") ? String(prefix.dropLast()) : prefix
+                return .suffix(cleanPrefix)
+            }
+        }
+        
+        // For complex patterns, resolve immediately
+        return .complex(Glob.resolveGlob(pattern))
+    }
+    
+    /// Fast matching for categorized patterns
+    func matches(path: String) -> Bool {
+        switch self {
+        case .prefix(let suffix):
+            return path.hasSuffix(suffix)
+        case .suffix(let prefix):
+            // Sanitize input path by removing trailing slash for consistent matching
+            let cleanPath = path.hasSuffix("/") ? String(path.dropLast()) : path
+            return cleanPath.hasPrefix(prefix)
+        case .complex(let resolvedPaths):
+            return resolvedPaths.contains { resolvedPath in
+                path.hasPrefix(resolvedPath) || resolvedPath.hasPrefix(path)
+            }
+        }
+    }
+}
+
+/// Optimized glob matcher that categorizes patterns for performance
+struct OptimizedGlobMatcher {
+    private let prefixPatterns: [String]
+    private let suffixPatterns: [String]
+    private let resolvedComplexPaths: [String]
+    
+    init(patterns: [String]) {
+        var prefixPatterns: [String] = []
+        var suffixPatterns: [String] = []
+        var complexPatterns: [String] = []
+        
+        for pattern in patterns {
+            switch OptimizedGlobPattern.categorize(pattern) {
+            case .prefix(let suffix):
+                prefixPatterns.append(suffix)
+            case .suffix(let prefix):
+                suffixPatterns.append(prefix)
+            case .complex(let resolvedPaths):
+                complexPatterns.append(contentsOf: resolvedPaths)
+            }
+        }
+        
+        self.prefixPatterns = prefixPatterns
+        self.suffixPatterns = suffixPatterns
+        // Complex patterns are already resolved during categorization
+        self.resolvedComplexPaths = complexPatterns
+    }
+    
+    /// Fast path matching using string operations where possible
+    func matches(path: String) -> Bool {
+        // Check prefix patterns (fastest)
+        for suffix in prefixPatterns {
+            if path.hasSuffix(suffix) {
+                return true
+            }
+        }
+        
+        // Check suffix patterns
+        for prefix in suffixPatterns {
+            if path.hasPrefix(prefix) {
+                return true
+            }
+        }
+        
+        // Check pre-resolved complex patterns
+        for resolvedPath in resolvedComplexPaths {
+            if path.hasPrefix(resolvedPath) || resolvedPath.hasPrefix(path) {
+                return true
+            }
+        }
+        
+        return false
+    }
+}
+
 // Adapted from https://gist.github.com/efirestone/ce01ae109e08772647eb061b3bb387c3
 
 struct Glob {

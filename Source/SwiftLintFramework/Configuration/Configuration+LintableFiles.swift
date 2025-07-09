@@ -69,8 +69,10 @@ extension Configuration {
 
     /// Returns an array of file paths after removing the excluded paths as defined by this configuration.
     ///
-    /// - parameter fileManager: The lintable file manager to use to expand the excluded paths into all matching paths.
-    /// - parameter paths:       The input paths to filter.
+    /// This method now uses optimized pattern matching for better performance with common glob patterns.
+    ///
+    /// - parameter excludedPaths: The excluded path patterns to filter out.
+    /// - parameter paths:         The input paths to filter.
     ///
     /// - returns: The input paths after removing the excluded paths.
     public func filterExcludedPaths(
@@ -78,17 +80,15 @@ extension Configuration {
         in paths: [String]...
     ) -> [String] {
         let allPaths = paths.flatMap { $0 }
-        #if os(Linux)
-        let result = NSMutableOrderedSet(capacity: allPaths.count)
-        result.addObjects(from: allPaths)
-        #else
-        let result = NSMutableOrderedSet(array: allPaths)
-        #endif
-
-        result.minusSet(Set(excludedPaths))
-        // swiftlint:disable:next force_cast
-        return result.map { $0 as! String }
+        guard !excludedPaths.isEmpty else { return allPaths }
+        
+        // Use the optimized matcher for all exclusion patterns
+        let optimizedMatcher = OptimizedGlobMatcher(patterns: excludedPaths)
+        return allPaths.filter { path in
+            !optimizedMatcher.matches(path: path.absolutePathStandardized())
+        }
     }
+
 
     /// Returns the file paths that are excluded by this configuration using filtering by absolute path prefix.
     ///
