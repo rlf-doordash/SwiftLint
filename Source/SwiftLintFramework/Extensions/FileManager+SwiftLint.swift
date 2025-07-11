@@ -39,6 +39,82 @@ extension FileManager: LintableFileManager {
             return [absolutePath]
         }
 
+        // Use simple traversal for backward compatibility
+        return simpleFilesToLint(inPath: absolutePath)
+    }
+    
+    /// Optimized filesToLint that uses Configuration's pre-built exclusion matcher for fast directory skipping.
+    /// This method requires a Configuration and is much faster than the standard filesToLint for large codebases.
+    public func optimizedFilesToLint(inPath path: String, configuration: Configuration) -> [String] {
+        let absolutePath = path.bridge()
+            .absolutePathRepresentation(rootDirectory: configuration.rootDirectory).bridge()
+            .standardizingPath
+
+        // if path is a file, return it immediatly
+        if absolutePath.bridge().isSwiftFile() {
+            return [absolutePath]
+        }
+
+        // If this is a directory lets start the traversal
+        if !absolutePath.isFile {
+            return optimizedDirectoryTraversal(inPath: absolutePath, configuration: configuration)
+        }
+
+        return []
+    }
+    
+    /// Optimized iterative directory traversal that skips excluded directories early.
+    /// Uses the Configuration's pre-built OptimizedGlobMatcher with absolute path matching.
+    private func optimizedDirectoryTraversal(inPath rootPath: String, configuration: Configuration) -> [String] {
+        var result: [String] = []
+        var directoriesToProcess: [String] = [rootPath]
+        
+        // Use the configuration's pre-built optimized matcher (created once at configuration construction)
+        let globMatcher = configuration.optimizedExclusionMatcher
+        
+        while !directoriesToProcess.isEmpty {
+            let currentDirectory = directoriesToProcess.removeFirst()
+            
+            // Get immediate contents of current directory only
+            guard let contents = try? contentsOfDirectory(atPath: currentDirectory) else {
+                continue
+            }
+            
+            for item in contents {
+                let itemPath = currentDirectory.bridge().appendingPathComponent(item)
+                
+                var isDirectory: ObjCBool = false
+                guard fileExists(atPath: itemPath, isDirectory: &isDirectory) else {
+                    continue
+                }
+                
+                let isSwiftFile = item.bridge().isSwiftFile()
+                
+                // Skip non-Swift files that aren't directories
+                if !isSwiftFile && !isDirectory.boolValue {
+                    continue
+                }
+                
+                // Use absolute path for pattern matching
+                if globMatcher.matches(path: itemPath) {
+                    continue  // Skip this file/directory entirely
+                }
+                
+                if isSwiftFile {
+                    // Add Swift file to results
+                    result.append(itemPath)
+                } else if isDirectory.boolValue {
+                    // Add directory for future processing
+                    directoriesToProcess.append(itemPath)
+                }
+            }
+        }
+        
+        return result
+    }
+    
+    /// Simple traversal without optimization (for backward compatibility)
+    private func simpleFilesToLint(inPath absolutePath: String) -> [String] {
         return subpaths(atPath: absolutePath)?.parallelCompactMap { element -> String? in
             guard element.bridge().isSwiftFile() else { return nil }
             let absoluteElementPath = absolutePath.bridge().appendingPathComponent(element)

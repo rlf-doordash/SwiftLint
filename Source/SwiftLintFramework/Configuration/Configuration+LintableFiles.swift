@@ -54,16 +54,42 @@ extension Configuration {
             return [path]
         }
 
-        let pathsForPath = includedPaths.isEmpty ? fileManager.filesToLint(inPath: path, rootDirectory: nil) : []
-        let includedPaths = self.includedPaths
-            .flatMap(Glob.resolveGlob)
-            .parallelFlatMap { fileManager.filesToLint(inPath: $0, rootDirectory: rootDirectory) }
+        // Use optimized traversal with early directory skipping when possible
+        let useOptimizedTraversal = fileManager is FileManager && !excludedPaths.isEmpty
+        
+        let pathsForPath: [String]
+        let includedPaths: [String]
+        
+        if useOptimizedTraversal, let fm = fileManager as? FileManager {
+            if self.includedPaths.isEmpty {
+                // No included paths specified - scan the input path
+                pathsForPath = fm.optimizedFilesToLint(inPath: path, configuration: self)
+                includedPaths = []
+            } else {
+                // Included paths specified - ignore input path, only scan included paths
+                pathsForPath = []
+                includedPaths = self.includedPaths
+                    .flatMap(Glob.resolveGlob)
+                    .parallelFlatMap { fm.optimizedFilesToLint(inPath: $0, configuration: self) }
+            }
+        } else {
+            // Fallback to original approach
+            pathsForPath = self.includedPaths.isEmpty ? fileManager.filesToLint(inPath: path, rootDirectory: nil) : []
+            includedPaths = self.includedPaths
+                .flatMap(Glob.resolveGlob)
+                .parallelFlatMap { fileManager.filesToLint(inPath: $0, rootDirectory: rootDirectory) }
+        }
 
         switch excludeBy {
         case .prefix:
             return filterExcludedPathsByPrefix(in: pathsForPath, includedPaths)
         case .paths(let excludedPaths):
-            return filterExcludedPaths(excludedPaths, in: pathsForPath, includedPaths)
+            // When using optimized traversal, files are already filtered, so return as-is
+            if useOptimizedTraversal {
+                return pathsForPath + includedPaths
+            } else {
+                return filterExcludedPaths(excludedPaths, in: pathsForPath, includedPaths)
+            }
         }
     }
 

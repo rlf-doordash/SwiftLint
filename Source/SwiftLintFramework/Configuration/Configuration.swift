@@ -68,6 +68,9 @@ public struct Configuration {
     /// The rules mode used for this configuration.
     public var rulesMode: RulesMode { rulesWrapper.mode }
 
+    /// Optimized glob matcher for excluded paths, created once at configuration construction time.
+    public let optimizedExclusionMatcher: OptimizedGlobMatcher
+
     // MARK: Internal Instance
     internal var fileGraph: FileGraph
     internal private(set) var rulesWrapper: RulesWrapper
@@ -94,7 +97,14 @@ public struct Configuration {
         self.rulesWrapper = rulesWrapper
         self.fileGraph = fileGraph
         self.includedPaths = includedPaths
-        self.excludedPaths = excludedPaths
+        
+        // Adjust excluded paths for nested configurations using absolute paths
+        self.excludedPaths = Self.adjustExcludedPathsForAbsolutePaths(
+            excludedPaths: excludedPaths,
+            configDirectory: fileGraph.rootDirectory
+        )
+        
+        self.optimizedExclusionMatcher = OptimizedGlobMatcher(patterns: self.excludedPaths)
         self.indentation = indentation
         self.warningThreshold = warningThreshold
         self.reporter = reporter
@@ -114,7 +124,8 @@ public struct Configuration {
         rulesWrapper = configuration.rulesWrapper
         fileGraph = configuration.fileGraph
         includedPaths = configuration.includedPaths
-        excludedPaths = configuration.excludedPaths
+        excludedPaths = configuration.excludedPaths  // Already adjusted in source
+        optimizedExclusionMatcher = configuration.optimizedExclusionMatcher  // Already built in source
         indentation = configuration.indentation
         warningThreshold = configuration.warningThreshold
         reporter = configuration.reporter
@@ -204,6 +215,26 @@ public struct Configuration {
         )
     }
 
+    // MARK: - Private Helper Methods
+    
+    /// Adjust excluded paths for absolute path matching by prepending the config directory to non-suffix patterns.
+    /// Suffix patterns (starting with **) work globally, but other patterns need the config's absolute directory.
+    private static func adjustExcludedPathsForAbsolutePaths(
+        excludedPaths: [String],
+        configDirectory: String
+    ) -> [String] {
+        return excludedPaths.map { pattern in
+            // Suffix patterns (starting with **) work globally - no adjustment needed
+            if pattern.hasPrefix("**") {
+                return pattern
+            }
+            
+            // Adjust all other patterns to be absolute paths from the config directory
+            let adjustedPattern = configDirectory.bridge().appendingPathComponent(pattern)
+            return adjustedPattern
+        }
+    }
+    
     // MARK: Public
     /// Creates a `Configuration` with convenience parameters.
     ///

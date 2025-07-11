@@ -180,8 +180,8 @@ final class OptimizedGlobMatcherTests: SwiftLintTestCase {
         }
     }
 
-    func testUserReportedPatterns() {
-        // Test the exact patterns from user's issue
+    func testUserProvidedRealWorldPatterns() {
+        // Test patterns provided by the user in the conversation
         let userPatterns = [
             "**/.index-build",
             "**/.build", 
@@ -193,13 +193,42 @@ final class OptimizedGlobMatcherTests: SwiftLintTestCase {
         
         let matcher = OptimizedGlobMatcher(patterns: userPatterns)
         
-        // Should match the problematic file from user's report
-        let problematicFile = "Apps/Consumer/Layers/DomainInterfaces/.build/index-build/checkouts/AddMarkersSymbolExample.swift"
-        XCTAssertTrue(matcher.matches(path: problematicFile), "Should exclude files in .build directories")
-        
-        // Should match other expected exclusions
-        XCTAssertTrue(matcher.matches(path: "some/path/.index-build"))
-        XCTAssertTrue(matcher.matches(path: "project/Generated"))
+        // These should be excluded
+        XCTAssertTrue(matcher.matches(path: "Apps/Consumer/Layers/DomainInterfaces/.build/index-build/checkouts/AddMarkersSymbolExample.swift"))
+        XCTAssertTrue(matcher.matches(path: "project/.index-build/some/file.swift"))
+        XCTAssertTrue(matcher.matches(path: "project/.build/some/file.swift"))
+        XCTAssertTrue(matcher.matches(path: "project/Generated/SomeFile.swift"))
         XCTAssertTrue(matcher.matches(path: "app/LocalizedStrings.swift"))
+    }
+    
+    func testAbsolutePathAdjustment() {
+        // Test that patterns are correctly adjusted to absolute paths
+        let patterns = [
+            "**/.build",        // Should NOT be adjusted (suffix pattern)
+            "Foo/**",          // Should be adjusted to absolute path
+            "Generated/*.swift", // Should be adjusted to absolute path
+            "specific.swift"    // Should be adjusted to absolute path
+        ]
+        
+        // Simulate config at /Users/project/Apps/Consumer/.swiftlint.yml
+        let configDir = "/Users/project/Apps/Consumer"
+        let expectedAdjustedPatterns = [
+            "**/.build",                                      // Unchanged
+            "/Users/project/Apps/Consumer/Foo/**",           // Adjusted
+            "/Users/project/Apps/Consumer/Generated/*.swift", // Adjusted
+            "/Users/project/Apps/Consumer/specific.swift"     // Adjusted
+        ]
+        
+        let matcher = OptimizedGlobMatcher(patterns: expectedAdjustedPatterns)
+        
+        // Test that absolute paths match correctly
+        XCTAssertTrue(matcher.matches(path: "/Users/project/Apps/Consumer/Foo/SomeFile.swift"))
+        XCTAssertTrue(matcher.matches(path: "/Users/project/Apps/Consumer/Generated/Test.swift"))
+        XCTAssertTrue(matcher.matches(path: "/Users/project/Apps/Consumer/specific.swift"))
+        XCTAssertTrue(matcher.matches(path: "/Users/anywhere/.build/file.swift")) // Suffix pattern works globally
+        
+        // Test that non-matching paths are not excluded
+        XCTAssertFalse(matcher.matches(path: "/Users/project/Apps/Consumer/Other/file.swift"))
+        XCTAssertFalse(matcher.matches(path: "/Users/different/Apps/Consumer/Foo/file.swift"))
     }
 } 

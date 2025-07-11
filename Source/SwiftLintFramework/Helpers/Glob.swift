@@ -72,12 +72,12 @@ enum OptimizedGlobPattern: Equatable {
 }
 
 /// Optimized glob matcher that categorizes patterns for performance
-struct OptimizedGlobMatcher {
+public struct OptimizedGlobMatcher {
     private let prefixPatterns: [String]
     private let suffixPatterns: [String]
     private let resolvedComplexPaths: [String]
     
-    init(patterns: [String]) {
+    public init(patterns: [String]) {
         var prefixPatterns: [String] = []
         var suffixPatterns: [String] = []
         var complexPatterns: [String] = []
@@ -100,7 +100,7 @@ struct OptimizedGlobMatcher {
     }
     
     /// Fast path matching using string operations where possible
-    func matches(path: String) -> Bool {
+    public func matches(path: String) -> Bool {
         // Check prefix patterns (fastest)
         for suffix in prefixPatterns {
             if path.hasSuffix(suffix) {
