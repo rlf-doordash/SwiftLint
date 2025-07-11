@@ -88,7 +88,7 @@ extension Configuration {
         (file.path?.bridge().deletingLastPathComponent).map(configuration(forDirectory:)) ?? self
     }
 
-    private func configuration(forDirectory directory: String) -> Configuration {
+    internal func configuration(forDirectory directory: String) -> Configuration {
         // If the configuration was explicitly specified via the `--config` param, don't use nested configs
         guard !basedOnCustomConfigurationFiles else { return self }
 

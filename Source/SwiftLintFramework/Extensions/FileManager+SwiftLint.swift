@@ -65,17 +65,15 @@ extension FileManager: LintableFileManager {
     
     /// Optimized iterative directory traversal that skips excluded directories early.
     /// Uses the Configuration's pre-built OptimizedGlobMatcher with absolute path matching.
+    /// Gets the appropriate configuration for each file to handle nested configurations correctly.
     private func optimizedDirectoryTraversal(inPath rootPath: String, configuration: Configuration) -> [String] {
         var result: [String] = []
         var directoriesToProcess: [String] = [rootPath]
         
-        // Use the configuration's pre-built optimized matcher (created once at configuration construction)
-        let globMatcher = configuration.optimizedExclusionMatcher
-        
         while !directoriesToProcess.isEmpty {
             let currentDirectory = directoriesToProcess.removeFirst()
             
-            // Get immediate contents of current directory only
+            // Get immediate contents of current directory only (not recursive)
             guard let contents = try? contentsOfDirectory(atPath: currentDirectory) else {
                 continue
             }
@@ -95,9 +93,13 @@ extension FileManager: LintableFileManager {
                     continue
                 }
                 
-                // Use absolute path for pattern matching
-                if globMatcher.matches(path: itemPath) {
-                    continue  // Skip this file/directory entirely
+                // Get the appropriate configuration for this specific file/directory
+                // This handles nested configurations correctly without reading file content
+                let fileConfiguration = configuration.configuration(forDirectory: currentDirectory)
+                
+                // Use the file-specific configuration's optimized matcher
+                if fileConfiguration.optimizedExclusionMatcher.matches(path: itemPath) {
+                    continue  // Skip this file/directory entirely (early directory skipping!)
                 }
                 
                 if isSwiftFile {
