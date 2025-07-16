@@ -98,7 +98,7 @@ extension FileManager: LintableFileManager {
                 let fileConfiguration = configuration.configuration(forDirectory: currentDirectory)
                 
                 // Use the file-specific configuration's optimized matcher
-                if fileConfiguration.optimizedExclusionMatcher.matches(path: itemPath) {
+                if fileConfiguration.optimizedExcludedPaths.matches(path: itemPath) {
                     continue  // Skip this file/directory entirely (early directory skipping!)
                 }
                 

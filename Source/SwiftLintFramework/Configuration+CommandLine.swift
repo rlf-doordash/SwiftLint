@@ -116,12 +116,7 @@ extension Configuration {
             let fileConfigurationRootPath = fileConfiguration.rootDirectory.bridge()
 
             // Files whose configuration specifies they should be excluded will be skipped
-            let shouldSkip = fileConfiguration.excludedPaths.contains { excludedRelativePath in
-                let excludedPath = fileConfigurationRootPath.appendingPathComponent(excludedRelativePath)
-                let filePathComponents = file.path?.bridge().pathComponents ?? []
-                let excludedPathComponents = excludedPath.bridge().pathComponents
-                return filePathComponents.starts(with: excludedPathComponents)
-            }
+            let shouldSkip = fileConfiguration.optimizedExcludedPaths.matches(path: file.path?.absolutePathStandardized() ?? "")
 
             return shouldSkip ? nil : fileConfiguration
         }
@@ -259,7 +254,7 @@ extension Configuration {
                 return filterExcludedPathsByPrefix(in: scriptInputPaths)
                     .map(SwiftLintFile.init(pathDeferringReading:))
             }
-            return filterExcludedPaths(excludedPaths(), in: scriptInputPaths)
+            return filterExcludedPaths(optimizedExcludedPaths, in: scriptInputPaths)
                 .map(SwiftLintFile.init(pathDeferringReading:))
         }
         if !options.quiet {
@@ -274,7 +269,7 @@ extension Configuration {
         }
         let excludeLintableFilesBy = options.useExcludingByPrefix
                     ? Configuration.ExcludeBy.prefix
-                    : .paths(excludedPaths: excludedPaths)
+                    : .globPattern(optimizedExcludedPaths)
         return options.paths.flatMap {
             self.lintableFiles(
                 inPath: $0,

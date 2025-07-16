@@ -3,7 +3,7 @@ import Foundation
 extension Configuration {
     public enum ExcludeBy {
         case prefix
-        case paths(excludedPaths: [String])
+        case globPattern([OptimizedGlobPattern])
     }
 
     // MARK: Lintable Paths
@@ -46,8 +46,9 @@ extension Configuration {
                 switch excludeBy {
                 case .prefix:
                     return filterExcludedPathsByPrefix(in: [path.absolutePathStandardized()])
-                case .paths(let excludedPaths):
-                    return filterExcludedPaths(excludedPaths, in: [path.absolutePathStandardized()])
+                case .globPattern(let patterns):
+                    let absolutePath = path.absolutePathStandardized()
+                    return patterns.matches(path: absolutePath) ? [] : [absolutePath]
                 }
             }
             // If path is a file and we're not forcing excludes, skip filtering with excluded/included paths
@@ -83,12 +84,12 @@ extension Configuration {
         switch excludeBy {
         case .prefix:
             return filterExcludedPathsByPrefix(in: pathsForPath, includedPaths)
-        case .paths(let excludedPaths):
+        case .globPattern(let patterns):
             // When using optimized traversal, files are already filtered, so return as-is
             if useOptimizedTraversal {
                 return pathsForPath + includedPaths
             } else {
-                return filterExcludedPaths(excludedPaths, in: pathsForPath, includedPaths)
+                return filterExcludedPaths(patterns, in: pathsForPath, includedPaths)
             }
         }
     }
@@ -108,10 +109,26 @@ extension Configuration {
         let allPaths = paths.flatMap { $0 }
         guard !excludedPaths.isEmpty else { return allPaths }
         
-        // Use the optimized matcher for all exclusion patterns
-        let optimizedMatcher = OptimizedGlobMatcher(patterns: excludedPaths)
+        // Use the optimized patterns for all exclusion patterns
+        let optimizedPatterns = excludedPaths.map { OptimizedGlobPattern.categorize($0, configRootPath: rootDirectory) }
         return allPaths.filter { path in
-            !optimizedMatcher.matches(path: path.absolutePathStandardized())
+            !optimizedPatterns.matches(path: path.absolutePathStandardized())
+        }
+    }
+
+    /// Returns an array of file paths after removing the excluded paths using optimized glob patterns.
+    ///
+    /// - parameter patterns: The optimized glob patterns to use for exclusion.
+    /// - parameter paths:    The input paths to filter.
+    ///
+    /// - returns: The input paths after removing the excluded paths.
+    public func filterExcludedPaths(
+        _ patterns: [OptimizedGlobPattern],
+        in paths: [String]...
+    ) -> [String] {
+        let allPaths = paths.flatMap { $0 }
+        return allPaths.filter { path in
+            !patterns.matches(path: path.absolutePathStandardized())
         }
     }
 

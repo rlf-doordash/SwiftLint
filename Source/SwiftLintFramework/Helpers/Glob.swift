@@ -11,7 +11,7 @@ import func Musl.glob
 // MARK: - Optimized Pattern Matching
 
 /// Categorizes glob patterns for optimized matching
-enum OptimizedGlobPattern: Equatable {
+public enum OptimizedGlobPattern: Equatable, Hashable {
     /// Pattern like `**foo` - matches paths ending with "foo"
     case prefix(String)
     /// Pattern like `foo**` - matches paths starting with "foo"
@@ -20,7 +20,7 @@ enum OptimizedGlobPattern: Equatable {
     case complex([String])
     
     /// Creates an optimized pattern from a glob string
-    static func categorize(_ pattern: String) -> OptimizedGlobPattern {
+    static func categorize(_ pattern: String, configRootPath: String) -> OptimizedGlobPattern {
         let globCharset = CharacterSet(charactersIn: "*?[]")
         
         // Simple patterns without glob characters are treated as literal
@@ -46,7 +46,9 @@ enum OptimizedGlobPattern: Equatable {
             if prefix.rangeOfCharacter(from: globCharset) == nil {
                 // Handle /** suffix  
                 let cleanPrefix = prefix.hasSuffix("/") ? String(prefix.dropLast()) : prefix
-                return .suffix(cleanPrefix)
+                // Suffix patterns are always made absolute with the provided config root path
+                let absolutePrefix = configRootPath.bridge().appendingPathComponent(cleanPrefix).absolutePathStandardized()
+                return .suffix(absolutePrefix)
             }
         }
         
@@ -71,57 +73,14 @@ enum OptimizedGlobPattern: Equatable {
     }
 }
 
-/// Optimized glob matcher that categorizes patterns for performance
-public struct OptimizedGlobMatcher {
-    private let prefixPatterns: [String]
-    private let suffixPatterns: [String]
-    private let resolvedComplexPaths: [String]
-    
-    public init(patterns: [String]) {
-        var prefixPatterns: [String] = []
-        var suffixPatterns: [String] = []
-        var complexPatterns: [String] = []
-        
-        for pattern in patterns {
-            switch OptimizedGlobPattern.categorize(pattern) {
-            case .prefix(let suffix):
-                prefixPatterns.append(suffix)
-            case .suffix(let prefix):
-                suffixPatterns.append(prefix)
-            case .complex(let resolvedPaths):
-                complexPatterns.append(contentsOf: resolvedPaths)
-            }
-        }
-        
-        self.prefixPatterns = prefixPatterns
-        self.suffixPatterns = suffixPatterns
-        // Complex patterns are already resolved during categorization
-        self.resolvedComplexPaths = complexPatterns
-    }
-    
+extension Sequence where Element == OptimizedGlobPattern {
     /// Fast path matching using string operations where possible
-    public func matches(path: String) -> Bool {
-        // Check prefix patterns (fastest)
-        for suffix in prefixPatterns {
-            if path.hasSuffix(suffix) {
+    func matches(path: String) -> Bool {
+        for pattern in self {
+            if pattern.matches(path: path) {
                 return true
             }
         }
-        
-        // Check suffix patterns
-        for prefix in suffixPatterns {
-            if path.hasPrefix(prefix) {
-                return true
-            }
-        }
-        
-        // Check pre-resolved complex patterns
-        for resolvedPath in resolvedComplexPaths {
-            if path.hasPrefix(resolvedPath) || resolvedPath.hasPrefix(path) {
-                return true
-            }
-        }
-        
         return false
     }
 }

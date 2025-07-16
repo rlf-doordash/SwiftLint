@@ -20,6 +20,9 @@ public struct Configuration {
     /// The paths that should be excluded when linting
     public private(set) var excludedPaths: [String]
 
+    /// Optimized excluded path patterns, created once at configuration construction time.
+    public let optimizedExcludedPaths: [OptimizedGlobPattern]
+
     /// The style to use when indenting Swift source code.
     public let indentation: IndentationStyle
 
@@ -67,10 +70,7 @@ public struct Configuration {
 
     /// The rules mode used for this configuration.
     public var rulesMode: RulesMode { rulesWrapper.mode }
-
-    /// Optimized glob matcher for excluded paths, created once at configuration construction time.
-    public let optimizedExclusionMatcher: OptimizedGlobMatcher
-
+    
     // MARK: Internal Instance
     internal var fileGraph: FileGraph
     internal private(set) var rulesWrapper: RulesWrapper
@@ -97,14 +97,10 @@ public struct Configuration {
         self.rulesWrapper = rulesWrapper
         self.fileGraph = fileGraph
         self.includedPaths = includedPaths
-        
-        // Adjust excluded paths for nested configurations using absolute paths
-        self.excludedPaths = Self.adjustExcludedPathsForAbsolutePaths(
-            excludedPaths: excludedPaths,
-            configDirectory: fileGraph.rootDirectory
-        )
-        
-        self.optimizedExclusionMatcher = OptimizedGlobMatcher(patterns: self.excludedPaths)
+        self.excludedPaths = excludedPaths
+        self.optimizedExcludedPaths = excludedPaths.map {
+            OptimizedGlobPattern.categorize($0, configRootPath: fileGraph.rootDirectory)
+        }
         self.indentation = indentation
         self.warningThreshold = warningThreshold
         self.reporter = reporter
@@ -124,8 +120,8 @@ public struct Configuration {
         rulesWrapper = configuration.rulesWrapper
         fileGraph = configuration.fileGraph
         includedPaths = configuration.includedPaths
-        excludedPaths = configuration.excludedPaths  // Already adjusted in source
-        optimizedExclusionMatcher = configuration.optimizedExclusionMatcher  // Already built in source
+        excludedPaths = configuration.excludedPaths
+        optimizedExcludedPaths = configuration.optimizedExcludedPaths
         indentation = configuration.indentation
         warningThreshold = configuration.warningThreshold
         reporter = configuration.reporter
@@ -216,24 +212,6 @@ public struct Configuration {
     }
 
     // MARK: - Private Helper Methods
-    
-    /// Adjust excluded paths for absolute path matching by prepending the config directory to non-suffix patterns.
-    /// Suffix patterns (starting with **) work globally, but other patterns need the config's absolute directory.
-    private static func adjustExcludedPathsForAbsolutePaths(
-        excludedPaths: [String],
-        configDirectory: String
-    ) -> [String] {
-        return excludedPaths.map { pattern in
-            // Suffix patterns (starting with **) work globally - no adjustment needed
-            if pattern.hasPrefix("**") {
-                return pattern
-            }
-            
-            // Adjust all other patterns to be absolute paths from the config directory
-            let adjustedPattern = configDirectory.bridge().appendingPathComponent(pattern)
-            return adjustedPattern
-        }
-    }
     
     // MARK: Public
     /// Creates a `Configuration` with convenience parameters.
@@ -331,6 +309,11 @@ public struct Configuration {
         excludedPaths = excludedPaths.map {
             $0.bridge().absolutePathRepresentation(rootDirectory: previousBasePath).path(relativeTo: newBasePath)
         }
+        
+        // Regenerate optimized patterns with the new base path
+        optimizedExcludedPaths = excludedPaths.map {
+            OptimizedGlobPattern.categorize($0, configRootPath: newBasePath)
+        }
     }
 }
 
@@ -339,53 +322,49 @@ extension Configuration: Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(includedPaths)
         hasher.combine(excludedPaths)
+        hasher.combine(optimizedExcludedPaths)
         hasher.combine(indentation)
         hasher.combine(warningThreshold)
         hasher.combine(reporter)
+        hasher.combine(cachePath)
         hasher.combine(allowZeroLintableFiles)
         hasher.combine(strict)
         hasher.combine(lenient)
         hasher.combine(baseline)
         hasher.combine(writeBaseline)
         hasher.combine(checkForUpdates)
-        hasher.combine(basedOnCustomConfigurationFiles)
-        hasher.combine(cachePath)
-        hasher.combine(rules.map { type(of: $0).identifier })
-        hasher.combine(fileGraph)
     }
 
     public static func == (lhs: Configuration, rhs: Configuration) -> Bool {
         lhs.includedPaths == rhs.includedPaths &&
             lhs.excludedPaths == rhs.excludedPaths &&
+            lhs.optimizedExcludedPaths == rhs.optimizedExcludedPaths &&
             lhs.indentation == rhs.indentation &&
             lhs.warningThreshold == rhs.warningThreshold &&
             lhs.reporter == rhs.reporter &&
-            lhs.basedOnCustomConfigurationFiles == rhs.basedOnCustomConfigurationFiles &&
             lhs.cachePath == rhs.cachePath &&
-            lhs.rules == rhs.rules &&
-            lhs.fileGraph == rhs.fileGraph &&
             lhs.allowZeroLintableFiles == rhs.allowZeroLintableFiles &&
             lhs.strict == rhs.strict &&
             lhs.lenient == rhs.lenient &&
             lhs.baseline == rhs.baseline &&
             lhs.writeBaseline == rhs.writeBaseline &&
-            lhs.checkForUpdates == rhs.checkForUpdates &&
-            lhs.rulesMode == rhs.rulesMode
+            lhs.checkForUpdates == rhs.checkForUpdates
     }
 }
 
 // MARK: - CustomStringConvertible
 extension Configuration: CustomStringConvertible {
     public var description: String {
-        "Configuration: \n"
-            + "- Indentation Style: \(indentation)\n"
-            + "- Included Paths: \(includedPaths)\n"
-            + "- Excluded Paths: \(excludedPaths)\n"
-            + "- Warning Threshold: \(warningThreshold as Optional)\n"
-            + "- Root Directory: \(rootDirectory as Optional)\n"
-            + "- Reporter: \(reporter ?? "default")\n"
-            + "- Cache Path: \(cachePath as Optional)\n"
-            + "- Computed Cache Description: \(computedCacheDescription as Optional)\n"
-            + "- Rules: \(rules.map { type(of: $0).identifier })"
+        return """
+            - Indentation Style: \(indentation)
+            - Included Paths: \(includedPaths)
+            - Excluded Paths: \(excludedPaths)
+            - Optimized Excluded Patterns: \(optimizedExcludedPaths)
+            - Warning Threshold: \(warningThreshold as Optional)
+            - Root Directory: \(rootDirectory as Optional)
+            - Reporter: \(reporter as Optional)
+            - Baseline: \(baseline as Optional)
+            - Write Baseline: \(writeBaseline as Optional)
+            """
     }
 }
