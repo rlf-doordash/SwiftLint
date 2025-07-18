@@ -36,14 +36,14 @@ extension Configuration {
     private func mergedIncludedAndExcluded(
         with childConfiguration: Configuration,
         rootDirectory: String
-    ) -> (includedPaths: [String], excludedPaths: [String]) {
+    ) -> (includedPaths: [String], excludedPaths: [ExcludePath]) {
         // Render paths relative to their respective root paths → makes them comparable
         let childConfigIncluded = childConfiguration.includedPaths.map {
             $0.bridge().absolutePathRepresentation(rootDirectory: childConfiguration.rootDirectory)
         }
 
         let childConfigExcluded = childConfiguration.excludedPaths.map {
-            $0.bridge().absolutePathRepresentation(rootDirectory: childConfiguration.rootDirectory)
+            $0.makeAbsolutePath(rootDirectory: childConfiguration.rootDirectory)
         }
 
         let parentConfigIncluded = includedPaths.map {
@@ -51,7 +51,7 @@ extension Configuration {
         }
 
         let parentConfigExcluded = excludedPaths.map {
-            $0.bridge().absolutePathRepresentation(rootDirectory: self.rootDirectory)
+            $0.makeAbsolutePath(rootDirectory: self.rootDirectory)
         }
 
         // Prefer child configuration over parent configuration
@@ -61,7 +61,7 @@ extension Configuration {
         // Return paths relative to the provided root directory
         return (
             includedPaths: includedPaths.map { $0.path(relativeTo: rootDirectory) },
-            excludedPaths: excludedPaths.map { $0.path(relativeTo: rootDirectory) }
+            excludedPaths: excludedPaths.map { $0.makeRelativeTo(rootDirectory: rootDirectory) }
         )
     }
 

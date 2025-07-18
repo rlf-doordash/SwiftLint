@@ -6,7 +6,7 @@ class ExcludeByStrategyFactory {
                                         fileManager: some LintableFileManager = FileManager.default)
     -> any ExcludeByStrategy {
         if options.useExcludingByPrefix {
-            return ExcludeByPrefixStrategy(excludedPaths: configuration.excludedPaths)
+            return ExcludeByPrefixStrategy(excludedPaths: configuration.excludedPaths.map(\.currentPath))
         }
 
         return ExcludeByPathsByExpandingSubPaths(configuration: configuration, fileManager: fileManager)

@@ -11,6 +11,14 @@
 struct ExcludeByPrefixStrategy: ExcludeByStrategy {
     let excludedPaths: [String]
 
+    init(excludedPaths: [String]) {
+        self.excludedPaths = excludedPaths
+    }
+
+    init(excludedPaths: [Configuration.ExcludePath]) {
+        self.excludedPaths = excludedPaths.map(\.currentPath)
+    }
+
     func filterExcludedPaths(in paths: [String]...) -> [String] {
         let allPaths = paths.flatMap { $0 }
         let excludedPaths = self.excludedPaths

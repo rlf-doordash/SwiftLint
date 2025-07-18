@@ -18,7 +18,7 @@ public struct Configuration {
     public private(set) var includedPaths: [String]
 
     /// The paths that should be excluded when linting
-    public private(set) var excludedPaths: [String]
+    public private(set) var excludedPaths: [ExcludePath]
 
     /// The style to use when indenting Swift source code.
     public let indentation: IndentationStyle
@@ -79,7 +79,7 @@ public struct Configuration {
         rulesWrapper: RulesWrapper,
         fileGraph: FileGraph,
         includedPaths: [String],
-        excludedPaths: [String],
+        excludedPaths: [ExcludePath],
         indentation: IndentationStyle,
         warningThreshold: Int?,
         reporter: String?,
@@ -105,6 +105,42 @@ public struct Configuration {
         self.baseline = baseline
         self.writeBaseline = writeBaseline
         self.checkForUpdates = checkForUpdates
+    }
+
+    internal init(
+        rulesWrapper: RulesWrapper,
+        fileGraph: FileGraph,
+        includedPaths: [String],
+        excludedPaths: [String],
+        indentation: IndentationStyle,
+        warningThreshold: Int?,
+        reporter: String?,
+        cachePath: String?,
+        allowZeroLintableFiles: Bool,
+        strict: Bool,
+        lenient: Bool,
+        baseline: String?,
+        writeBaseline: String?,
+        checkForUpdates: Bool
+    ) {
+        let excludedPaths = excludedPaths.map({ path in
+            ExcludePath(path, originalConfigPath: fileGraph.rootDirectory)
+        })
+
+        self.init(rulesWrapper: rulesWrapper,
+                  fileGraph: fileGraph,
+                  includedPaths: includedPaths,
+                  excludedPaths: excludedPaths,
+                  indentation: indentation,
+                  warningThreshold: warningThreshold,
+                  reporter: reporter,
+                  cachePath: cachePath,
+                  allowZeroLintableFiles: allowZeroLintableFiles,
+                  strict: strict,
+                  lenient: lenient,
+                  baseline: baseline,
+                  writeBaseline: writeBaseline,
+                  checkForUpdates: checkForUpdates)
     }
 
     /// Creates a Configuration by copying an existing configuration.
@@ -298,7 +334,7 @@ public struct Configuration {
         }
 
         excludedPaths = excludedPaths.map {
-            $0.bridge().absolutePathRepresentation(rootDirectory: previousBasePath).path(relativeTo: newBasePath)
+            $0.makeExcludePath(relativeTo: newBasePath, previousBasePath: previousBasePath)
         }
     }
 }
@@ -307,7 +343,7 @@ public struct Configuration {
 extension Configuration: Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(includedPaths)
-        hasher.combine(excludedPaths)
+        hasher.combine(excludedPaths.map({ $0.currentPath }))
         hasher.combine(indentation)
         hasher.combine(warningThreshold)
         hasher.combine(reporter)

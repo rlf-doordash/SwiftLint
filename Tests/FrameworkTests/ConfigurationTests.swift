@@ -231,7 +231,7 @@ final class ConfigurationTests: SwiftLintTestCase {
         let actualIncludedPath = configuration.includedPaths.first!.bridge()
             .absolutePathRepresentation(rootDirectory: configuration.rootDirectory)
         let desiredIncludedPath = "File1.swift".absolutePathRepresentation(rootDirectory: Mock.Dir.level0)
-        let actualExcludedPath = configuration.excludedPaths.first!.bridge()
+        let actualExcludedPath = configuration.excludedPaths.first!.currentPath.bridge()
             .absolutePathRepresentation(rootDirectory: configuration.rootDirectory)
         let desiredExcludedPath = "File2.swift".absolutePathRepresentation(rootDirectory: Mock.Dir.level0)
 
@@ -247,7 +247,7 @@ final class ConfigurationTests: SwiftLintTestCase {
         let actualIncludedPath = configuration.includedPaths.first!.bridge()
             .absolutePathRepresentation(rootDirectory: configuration.rootDirectory)
         let desiredIncludedPath = "File1.swift".absolutePathRepresentation(rootDirectory: Mock.Dir.level0)
-        let actualExcludedPath = configuration.excludedPaths.first!.bridge()
+        let actualExcludedPath = configuration.excludedPaths.first!.currentPath.bridge()
             .absolutePathRepresentation(rootDirectory: configuration.rootDirectory)
         let desiredExcludedPath = "File2.swift".absolutePathRepresentation(rootDirectory: Mock.Dir.level0)
 

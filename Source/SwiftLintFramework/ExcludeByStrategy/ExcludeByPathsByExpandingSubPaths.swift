@@ -15,12 +15,13 @@ public struct ExcludeByPathsByExpandingSubPaths: ExcludeByStrategy {
 
     public init(configuration: Configuration, fileManager: some LintableFileManager = FileManager.default) {
         self.excludedPaths = configuration.excludedPaths
+            .map { $0.currentPath }
             .flatMap(Glob.resolveGlob)
             .parallelFlatMap { fileManager.filesToLint(inPath: $0, rootDirectory: configuration.rootDirectory) }
     }
 
-    public init(_ excludedPaths: [String]) {
-        self.excludedPaths = excludedPaths
+    public init(_ excludedPaths: [Configuration.ExcludePath]) {
+        self.excludedPaths = excludedPaths.map(\.currentPath)
     }
 
     public func filterExcludedPaths(in paths: [String]...) -> [String] {

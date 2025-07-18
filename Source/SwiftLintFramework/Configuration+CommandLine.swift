@@ -117,7 +117,7 @@ extension Configuration {
 
             // Files whose configuration specifies they should be excluded will be skipped
             let shouldSkip = fileConfiguration.excludedPaths.contains { excludedRelativePath in
-                let excludedPath = fileConfigurationRootPath.appendingPathComponent(excludedRelativePath)
+                let excludedPath = fileConfigurationRootPath.appendingPathComponent(excludedRelativePath.currentPath)
                 let filePathComponents = file.path?.bridge().pathComponents ?? []
                 let excludedPathComponents = excludedPath.bridge().pathComponents
                 return filePathComponents.starts(with: excludedPathComponents)
