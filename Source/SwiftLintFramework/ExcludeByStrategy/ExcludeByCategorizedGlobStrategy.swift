@@ -2,7 +2,7 @@
 //  ExcludeByCategorizedGlobStrategy.swift
 //
 
-class ExcludeByCategorizedGlobStrategy: ExcludeByStrategy {
+class ExcludeByCategorizedGlobStrategy: ExcludeByStrategy, PartialSubPathExcluder {
     
     let excludeByCategorizedGlobs: [CategorizedGlobPattern]
     
@@ -15,5 +15,9 @@ class ExcludeByCategorizedGlobStrategy: ExcludeByStrategy {
             .filter { path in
                 return !excludeByCategorizedGlobs.matches(path: path)
             }
+    }
+    
+    func isExcluded(path: String) -> Bool {
+        return excludeByCategorizedGlobs.matches(path: path)
     }
 }

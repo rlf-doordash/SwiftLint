@@ -44,11 +44,22 @@ extension Configuration {
             return [path]
         }
 
-        let pathsForPath = includedPaths.isEmpty ? fileManager.filesToLint(inPath: path, rootDirectory: nil) : []
-        let includedPaths = self.includedPaths
-            .flatMap(Glob.resolveGlob)
-            .parallelFlatMap { fileManager.filesToLint(inPath: $0, rootDirectory: rootDirectory) }
+        let pathsForPath: [String]
+        let includedPaths: [String]
 
+        // This means our excludeby strategy supports partial subPath exclusion, so we can get the paths in an optimized way
+        if let partialSubPathExcluder = excludeBy as? any PartialSubPathExcluder {
+            pathsForPath = self.includedPaths.isEmpty ? fileManager.filesToLint(inPath: path, rootDirectory: nil, excluder: partialSubPathExcluder) : []
+            includedPaths =  self.includedPaths
+                .flatMap(Glob.resolveGlob)
+                .parallelFlatMap { fileManager.filesToLint(inPath: $0, rootDirectory: rootDirectory, excluder: partialSubPathExcluder) }
+        } else {
+            pathsForPath = self.includedPaths.isEmpty ? fileManager.filesToLint(inPath: path, rootDirectory: nil) : []
+            includedPaths =  self.includedPaths
+                .flatMap(Glob.resolveGlob)
+                .parallelFlatMap { fileManager.filesToLint(inPath: $0, rootDirectory: rootDirectory) }
+        }
+        
         return excludeBy.filterExcludedPaths(in: pathsForPath, includedPaths)
     }
 }
