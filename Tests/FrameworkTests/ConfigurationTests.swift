@@ -256,6 +256,12 @@ final class ConfigurationTests: SwiftLintTestCase {
     }
 
     private class TestFileManager: LintableFileManager {
+        func filesToLint(inPath path: String,
+                         rootDirectory: String?,
+                         excluder _: any SwiftLintFramework.PartialSubPathExcluder) -> [String] {
+            filesToLint(inPath: path, rootDirectory: rootDirectory)
+        }
+
         func filesToLint(inPath path: String, rootDirectory _: String? = nil) -> [String] {
             var filesToLint: [String] = []
             switch path {

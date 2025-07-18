@@ -12,8 +12,7 @@ public protocol LintableFileManager {
     ///
     /// - returns: Files to lint.
     func filesToLint(inPath path: String, rootDirectory: String?) -> [String]
-    
-    
+
     /// Returns all files that can be linted in the specified path. If the path is relative, it will be appended to the
     /// specified root path, or current working directory if no root directory is specified.
     /// This method will discover directories iteratively one by one early skipping when possible
@@ -59,12 +58,14 @@ extension FileManager: LintableFileManager {
             return absoluteElementPath.isFile ? absoluteElementPath : nil
         } ?? []
     }
-        
-    public func filesToLint(inPath path: String, rootDirectory: String? = nil, excluder: any PartialSubPathExcluder) -> [String] {
+
+    public func filesToLint(inPath path: String,
+                            rootDirectory: String? = nil,
+                            excluder: any PartialSubPathExcluder) -> [String] {
         let initialAbsolutePath = path.bridge()
             .absolutePathRepresentation(rootDirectory: rootDirectory ?? currentDirectoryPath).bridge()
             .standardizingPath
-        
+
         var result: [String] = []
         var directoriesToProcess: [String] = [initialAbsolutePath]
 
@@ -87,7 +88,7 @@ extension FileManager: LintableFileManager {
                 let isSwiftFile = item.bridge().isSwiftFile()
 
                 // Skip non-Swift files that aren't directories
-                if !isSwiftFile && !isDirectory.boolValue {
+                if !isSwiftFile, !isDirectory.boolValue {
                     continue
                 }
 
